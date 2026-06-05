@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Search, ArrowLeft, Loader2, Calendar, Clock, ShieldCheck, Info } from "lucide-react";
 import Link from 'next/link';
-import { checkReportStatus } from '@/lib/actions';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+
+// 1. Importamos las herramientas de Firebase
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function TrackPage() {
   const [code, setCode] = useState('');
@@ -26,26 +29,45 @@ export default function TrackPage() {
     setReport(null);
 
     try {
-      const data = await checkReportStatus(code);
-      if (data) {
-        setReport(data);
+      // 2. Buscamos el código exacto en el cajón de "reportes"
+      const q = query(collection(db, "reportes"), where("codigoSeguimiento", "==", code.toUpperCase()));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // Obtenemos los datos del reporte encontrado
+        const data = querySnapshot.docs[0].data();
+        
+        // Formateamos la fecha para que se vea amigable
+        let fechaReg = "Fecha no disponible";
+        if (data.fechaCreacion) {
+          fechaReg = data.fechaCreacion.toDate().toLocaleDateString('es-PE', {
+            day: 'numeric', month: 'long', year: 'numeric'
+          });
+        }
+
+        setReport({
+          estado: data.estado,
+          tipoViolencia: data.tipoViolencia,
+          fechaRegistro: fechaReg,
+          ultimaActualizacion: "En tiempo real"
+        });
       } else {
-        setError('No se encontró ningún reporte con ese código.');
+        setError('No se encontró ningún reporte. Verifica que el código esté bien escrito.');
       }
     } catch (err) {
-      setError('Error al consultar. Intenta más tarde.');
+      console.error("Error consultando código:", err);
+      setError('Error al consultar la base de datos. Intenta más tarde.');
     } finally {
       setLoading(false);
     }
   }
 
+  // 3. Ajustamos la barra de progreso a los estados reales de tu panel
   const getStatusProgress = (status: string) => {
     switch(status) {
-      case 'Recibido': return 20;
-      case 'En evaluación': return 40;
-      case 'En investigación': return 70;
+      case 'Pendiente': return 25;
+      case 'En Revisión': return 60;
       case 'Resuelto': return 100;
-      case 'Cerrado': return 100;
       default: return 0;
     }
   };
@@ -72,13 +94,13 @@ export default function TrackPage() {
                 <Label htmlFor="code" className="sr-only">Código de Seguimiento</Label>
                 <Input 
                   id="code" 
-                  placeholder="Ej. AB12CD34" 
+                  placeholder="Ej. AB12CD" 
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   className="h-12 border-muted-foreground/20 font-mono text-center tracking-widest text-lg uppercase"
                 />
               </div>
-              <Button type="submit" disabled={loading} className="h-12 px-6">
+              <Button type="submit" disabled={loading || !code} className="h-12 px-6">
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Consultar'}
               </Button>
             </form>
@@ -94,7 +116,11 @@ export default function TrackPage() {
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">Estado del Caso</h3>
-                    <Badge variant="secondary" className="text-lg py-1 px-4 bg-primary/10 text-primary border-primary/20">
+                    <Badge variant="secondary" className={`text-lg py-1 px-4 border ${
+                      report.estado === 'Pendiente' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
+                      report.estado === 'En Revisión' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                      'bg-green-100 text-green-700 border-green-200'
+                    }`}>
                       {report.estado}
                     </Badge>
                   </div>
@@ -112,21 +138,21 @@ export default function TrackPage() {
                     <span>Progreso del proceso</span>
                     <span className="text-primary font-bold">{getStatusProgress(report.estado)}%</span>
                   </div>
-                  <Progress value={getStatusProgress(report.estado)} className="h-2 bg-primary/10" />
+                  <Progress value={getStatusProgress(report.estado)} className="h-2 bg-primary/20" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 rounded-xl bg-background border border-border">
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar className="w-4 h-4 text-primary opacity-60" />
-                      <span className="text-xs font-bold text-muted-foreground uppercase">Registrado</span>
+                      <span className="text-xs font-bold text-muted-foreground uppercase">Registrado el</span>
                     </div>
                     <p className="font-medium">{report.fechaRegistro}</p>
                   </div>
                   <div className="p-4 rounded-xl bg-background border border-border">
                     <div className="flex items-center gap-2 mb-2">
                       <ShieldCheck className="w-4 h-4 text-primary opacity-60" />
-                      <span className="text-xs font-bold text-muted-foreground uppercase">Tipo</span>
+                      <span className="text-xs font-bold text-muted-foreground uppercase">Categoría de reporte</span>
                     </div>
                     <p className="font-medium">{report.tipoViolencia}</p>
                   </div>
@@ -136,7 +162,7 @@ export default function TrackPage() {
                   <Info className="w-5 h-5 text-primary shrink-0" />
                   <div className="text-sm text-primary/80">
                     <p className="font-bold mb-1">Información importante</p>
-                    <p>Nuestro equipo está revisando los detalles. Si hay actualizaciones relevantes, aparecerán aquí. No compartas tu código con nadie.</p>
+                    <p>El equipo de tutoría está gestionando esta información de manera confidencial. No compartas tu código de seguimiento con nadie.</p>
                   </div>
                 </div>
               </div>

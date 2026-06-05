@@ -15,19 +15,39 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  async function handleLogin(e: React.FormEvent) {
+  // 1. Añadimos el parámetro "e" con su tipado correspondiente de React
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
 
+    // Credenciales de prueba
+    const adminEmail = "admin@reportljsm.com";
+    const adminPassword = "123456";
+
+    // Obtener los valores de los inputs
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem("email") as HTMLInputElement).value;
+    const password = (form.elements.namedItem("password") as HTMLInputElement).value;
+
     // Simulate authentication
     await new Promise(r => setTimeout(r, 1000));
-    
-    // In a real app: signInWithEmailAndPassword(auth, email, password)
-    toast({
-      title: "Bienvenido",
-      description: "Sesión iniciada correctamente.",
-    });
-    router.push('/admin/dashboard');
+
+    if (email === adminEmail && password === adminPassword) {
+      // In a real app: signInWithEmailAndPassword(auth, email, password)
+      toast({
+        title: "Bienvenido",
+        description: "Sesión iniciada correctamente.",
+      });
+      router.push('/admin/dashboard');
+    } else {
+      // 2. Manejo de error si las credenciales son incorrectas
+      toast({
+        variant: "destructive", // Asumiendo que usas shadcn/ui
+        title: "Error de acceso",
+        description: "Correo o contraseña incorrectos.",
+      });
+      setLoading(false); // Detener el spinner para que pueda intentar de nuevo
+    }
   }
 
   return (
@@ -55,14 +75,14 @@ export default function AdminLoginPage() {
                 <Label htmlFor="email">Correo Institucional</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="email" type="email" placeholder="nombre@ljsm.edu.pe" className="pl-10 h-11" required />
+                  <Input id="email" name="email" type="email" placeholder="nombre@ljsm.edu.pe" className="pl-10 h-11" required />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Contraseña</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input id="password" type="password" className="pl-10 h-11" required />
+                  <Input id="password" name="password" type="password" className="pl-10 h-11" required />
                 </div>
               </div>
             </CardContent>
